@@ -1,12 +1,17 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	_ "github.com/joho/godotenv/autoload"
+	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
+	"strconv"
+	"time"
+
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/timer"
+	tea "github.com/charmbracelet/bubbletea"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 type WebhookRequest struct {
@@ -22,18 +27,44 @@ func main() {
 		slog.Error("not enough args")
 		os.Exit(1)
 	}
-	webhookReq := WebhookRequest{"Work Session", "Complete"}
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(webhookReq); err != nil {
-		slog.Error("error encoding req", "err", err)
+	sleepTime, err := strconv.Atoi(args[0])
+	if err != nil {
+		slog.Error("not a number")
 		os.Exit(1)
 	}
-	resp, err := http.Post(webhookUrl, "application/json", &buf)
-	if err != nil {
-		slog.Error("error getting url", "err", err)
+
+	timeout := time.Minute * time.Duration(sleepTime)
+
+	m := model{
+		timer: timer.NewWithInterval(timeout, time.Second),
+		keymap: keymap{
+			start: key.NewBinding(
+				key.WithKeys("s"),
+				key.WithHelp("s", "start"),
+			),
+			stop: key.NewBinding(
+				key.WithKeys("s"),
+				key.WithHelp("s", "stop"),
+			),
+			reset: key.NewBinding(
+				key.WithKeys("r"),
+				key.WithHelp("r", "reset"),
+			),
+			quit: key.NewBinding(
+				key.WithKeys("q", "ctrl+c"),
+				key.WithHelp("q", "quit"),
+			),
+		},
+		help:       help.New(),
+		timeout:    timeout,
+		webhookUrl: webhookUrl,
 	}
-	if resp.StatusCode != http.StatusOK {
-		slog.Error("error status code", "code", resp.StatusCode)
+
+	m.keymap.start.SetEnabled(false)
+
+	if _, err := tea.NewProgram(m).Run(); err != nil {
+		fmt.Println("Uh oh, we encountered an error:", err)
+		os.Exit(1)
 	}
 }
