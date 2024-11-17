@@ -1,11 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"log/slog"
-	"net/http"
-	"os"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -15,13 +10,17 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type WebhookHandler interface {
+	SendEvent(WebhookRequest)
+}
+
 type model struct {
-	timer      timer.Model
-	keymap     keymap
-	help       help.Model
-	quitting   bool
-	timeout    time.Duration
-	webhookUrl string
+	timer          timer.Model
+	keymap         keymap
+	help           help.Model
+	quitting       bool
+	timeout        time.Duration
+	webhookHandler WebhookHandler
 }
 
 type keymap struct {
@@ -31,8 +30,21 @@ type keymap struct {
 	quit  key.Binding
 }
 
+func (m model) sendStartStopEvent() {
+	var startStop string
+	if m.timer.Running() {
+		startStop = "Start"
+	} else {
+		startStop = "Pause"
+	}
+	webhookReq := WebhookRequest{"Work Session", startStop}
+	m.webhookHandler.SendEvent(webhookReq)
+}
+
 func (m model) Init() tea.Cmd {
+	m.sendStartStopEvent()
 	return m.timer.Init()
+	// return m.timer.Stop()
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -47,29 +59,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.timer, cmd = m.timer.Update(msg)
 		m.keymap.stop.SetEnabled(m.timer.Running())
 		m.keymap.start.SetEnabled(!m.timer.Running())
+
+		m.sendStartStopEvent()
 		return m, cmd
 
 	case timer.TimeoutMsg:
 		m.quitting = true
 		webhookReq := WebhookRequest{"Work Session", "Complete"}
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(webhookReq); err != nil {
-			slog.Error("error encoding req", "err", err)
-			os.Exit(1)
-		}
-
-		resp, err := http.Post(m.webhookUrl, "application/json", &buf)
-		if err != nil {
-			slog.Error("error getting url", "err", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			slog.Error("error status code", "code", resp.StatusCode)
-		}
+		m.webhookHandler.SendEvent(webhookReq)
 		return m, tea.Quit
 
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keymap.quit):
+			webhookReq := WebhookRequest{"Work Session", "Quit"}
+			m.webhookHandler.SendEvent(webhookReq)
 			m.quitting = true
 			return m, tea.Quit
 		case key.Matches(msg, m.keymap.reset):

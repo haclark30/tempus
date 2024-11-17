@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"log/slog"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -11,27 +14,23 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/timer"
 	tea "github.com/charmbracelet/bubbletea"
-	_ "github.com/joho/godotenv/autoload"
 )
 
-type WebhookRequest struct {
-	Round string `json:"round"`
-	Type  string `json:"type"`
-}
-
 func main() {
-
-	webhookUrl := os.Getenv("WEBHOOK_URL")
 	args := os.Args[1:]
 	if len(args) < 1 {
 		slog.Error("not enough args")
 		os.Exit(1)
 	}
 
+	cfg, err := readConfig()
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		log.Fatal(fmt.Sprintf("no config file found: %v", err))
+	}
+
 	sleepTime, err := strconv.Atoi(args[0])
 	if err != nil {
-		slog.Error("not a number")
-		os.Exit(1)
+		log.Fatal(fmt.Sprintf("not a number: %v", err))
 	}
 
 	timeout := time.Minute * time.Duration(sleepTime)
@@ -56,9 +55,12 @@ func main() {
 				key.WithHelp("q", "quit"),
 			),
 		},
-		help:       help.New(),
-		timeout:    timeout,
-		webhookUrl: webhookUrl,
+		help:    help.New(),
+		timeout: timeout,
+		webhookHandler: HttpWebhookHandler{
+			client:     http.DefaultClient,
+			webhookUrl: cfg.WebhookUrl,
+		},
 	}
 
 	m.keymap.start.SetEnabled(false)
