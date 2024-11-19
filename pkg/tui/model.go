@@ -25,6 +25,7 @@ type model struct {
 }
 
 func NewModel(timeout time.Duration, keymap Keymap, webhookHandler WebhookHandler) model {
+	keymap.Start.SetEnabled(false)
 	return model{
 		timer:          timer.NewWithInterval(timeout, time.Second),
 		keymap:         keymap,
@@ -41,7 +42,7 @@ func (m model) sendStartStopEvent() {
 	} else {
 		startStop = "Pause"
 	}
-	webhookReq := webhook.WebhookRequest{"Work Session", startStop}
+	webhookReq := webhook.WebhookRequest{Round: "Work Session", Type: startStop}
 	m.webhookHandler.SendEvent(webhookReq)
 }
 
@@ -69,14 +70,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case timer.TimeoutMsg:
 		m.quitting = true
-		webhookReq := webhook.WebhookRequest{"Work Session", "Complete"}
+		webhookReq := webhook.WebhookRequest{Round: "Work Session", Type: "Complete"}
 		m.webhookHandler.SendEvent(webhookReq)
 		return m, tea.Quit
 
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keymap.Quit):
-			webhookReq := webhook.WebhookRequest{"Work Session", "Quit"}
+			webhookReq := webhook.WebhookRequest{Round: "Work Session", Type: "Quit"}
 			m.webhookHandler.SendEvent(webhookReq)
 			m.quitting = true
 			return m, tea.Quit
