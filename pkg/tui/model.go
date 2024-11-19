@@ -1,6 +1,7 @@
-package main
+package tui
 
 import (
+	"tempus/pkg/webhook"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -11,23 +12,26 @@ import (
 )
 
 type WebhookHandler interface {
-	SendEvent(WebhookRequest)
+	SendEvent(webhook.WebhookRequest)
 }
 
 type model struct {
 	timer          timer.Model
-	keymap         keymap
+	keymap         Keymap
 	help           help.Model
 	quitting       bool
 	timeout        time.Duration
 	webhookHandler WebhookHandler
 }
 
-type keymap struct {
-	start key.Binding
-	stop  key.Binding
-	reset key.Binding
-	quit  key.Binding
+func NewModel(timeout time.Duration, keymap Keymap, webhookHandler WebhookHandler) model {
+	return model{
+		timer:          timer.NewWithInterval(timeout, time.Second),
+		keymap:         keymap,
+		help:           help.New(),
+		timeout:        timeout,
+		webhookHandler: webhookHandler,
+	}
 }
 
 func (m model) sendStartStopEvent() {
@@ -37,7 +41,7 @@ func (m model) sendStartStopEvent() {
 	} else {
 		startStop = "Pause"
 	}
-	webhookReq := WebhookRequest{"Work Session", startStop}
+	webhookReq := webhook.WebhookRequest{"Work Session", startStop}
 	m.webhookHandler.SendEvent(webhookReq)
 }
 
@@ -57,28 +61,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case timer.StartStopMsg:
 		var cmd tea.Cmd
 		m.timer, cmd = m.timer.Update(msg)
-		m.keymap.stop.SetEnabled(m.timer.Running())
-		m.keymap.start.SetEnabled(!m.timer.Running())
+		m.keymap.Stop.SetEnabled(m.timer.Running())
+		m.keymap.Start.SetEnabled(!m.timer.Running())
 
 		m.sendStartStopEvent()
 		return m, cmd
 
 	case timer.TimeoutMsg:
 		m.quitting = true
-		webhookReq := WebhookRequest{"Work Session", "Complete"}
+		webhookReq := webhook.WebhookRequest{"Work Session", "Complete"}
 		m.webhookHandler.SendEvent(webhookReq)
 		return m, tea.Quit
 
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keymap.quit):
-			webhookReq := WebhookRequest{"Work Session", "Quit"}
+		case key.Matches(msg, m.keymap.Quit):
+			webhookReq := webhook.WebhookRequest{"Work Session", "Quit"}
 			m.webhookHandler.SendEvent(webhookReq)
 			m.quitting = true
 			return m, tea.Quit
-		case key.Matches(msg, m.keymap.reset):
+		case key.Matches(msg, m.keymap.Reset):
 			m.timer.Timeout = m.timeout
-		case key.Matches(msg, m.keymap.start, m.keymap.stop):
+		case key.Matches(msg, m.keymap.Start, m.keymap.Stop):
 			return m, m.timer.Toggle()
 		}
 	}
@@ -88,10 +92,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) helpView() string {
 	return "\n" + m.help.ShortHelpView([]key.Binding{
-		m.keymap.start,
-		m.keymap.stop,
-		m.keymap.reset,
-		m.keymap.quit,
+		m.keymap.Start,
+		m.keymap.Stop,
+		m.keymap.Reset,
+		m.keymap.Quit,
 	})
 }
 

@@ -1,4 +1,4 @@
-package main
+package webhook
 
 import (
 	"bytes"
@@ -9,8 +9,8 @@ import (
 )
 
 type HttpWebhookHandler struct {
-	client     *http.Client
-	webhookUrl string
+	Client     *http.Client
+	WebhookUrl string
 }
 
 type WebhookRequest struct {
@@ -24,7 +24,7 @@ func (h HttpWebhookHandler) SendEvent(req WebhookRequest) {
 		slog.Error("error encoding req", "err", err)
 		os.Exit(1)
 	}
-	resp, err := h.client.Post(h.webhookUrl, "application/json", &buf)
+	resp, err := h.Client.Post(h.WebhookUrl, "application/json", &buf)
 	if err != nil {
 		slog.Error("error getting url", "err", err)
 	}

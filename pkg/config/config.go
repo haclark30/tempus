@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ type config struct {
 	WebhookUrl string `json:"webhookUrl"`
 }
 
-func readConfig() (config, error) {
+func ReadConfig() (config, error) {
 	var cfg config
 	home, _ := os.UserHomeDir()
 	f, err := os.Open(home + configPath)
@@ -29,7 +29,7 @@ func readConfig() (config, error) {
 	return cfg, nil
 }
 
-func writeConfig(cfg config) error {
+func WriteConfig(cfg config) error {
 
 	f, err := os.Create(configPath)
 	if err != nil {
