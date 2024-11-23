@@ -10,6 +10,7 @@ const configPath = "/.config/tempus/config.json"
 
 type config struct {
 	WebhookUrl string `json:"webhookUrl"`
+	Muted      bool   `json:"muted"`
 }
 
 func ReadConfig() (config, error) {
